@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# data / outputs (never commit datasets)
+_extracted/
+*.tar.gz
+*.tar.gz.*
+*.parquet
+*.mp4
+*.rrd
+AgibotWorld_lerobot/
+AgiBotWorld2026/
+
+# misc
+.DS_Store
+.ipynb_checkpoints/
+*.png

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agibot2lerobot"
+version = "0.1.0"
+description = "Convert AgiBot World 2026 downloads into LeRobot v3.0 datasets"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy",
+    # lerobot[dataset,viz] is expected to be installed via environment.yml;
+    # it provides the v2.1->v3.0 converter, torchcodec and rerun.
+]
+
+[project.optional-dependencies]
+depth = ["matplotlib", "pillow"]
+
+[project.scripts]
+agibot2lerobot = "agibot2lerobot.__main__:main"
+
+[tool.setuptools]
+packages = ["agibot2lerobot"]

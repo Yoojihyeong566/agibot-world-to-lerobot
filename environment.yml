@@ -1,0 +1,16 @@
+# Reproducible conda env for AgiBot World -> LeRobot conversion.
+# Create with:  bash scripts/setup_env.sh
+#   (or:        conda env create -f environment.yml  &&  see README for 2 fixes)
+name: agibot_world
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  # torchcodec (lerobot's video decoder) supports ffmpeg 4..7 ONLY — never 8.
+  - ffmpeg=7.*
+  - pip
+  - pip:
+      # lerobot brings torch / torchvision / torchcodec; extras add HF datasets
+      # (load) and rerun-sdk (viz). Pin to the version this repo was tested on.
+      - "lerobot[dataset,viz]==0.5.2"
+      - matplotlib   # depth colormap helper (agibot2lerobot.depth)
