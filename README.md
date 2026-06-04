@@ -132,23 +132,35 @@ lerobot-dataset-viz --repo-id agibot/RI_task_4439_458713_458713 \
 * On a headless box add `--save 1 --output-dir out/` to write a `.rrd`, then open
   it on a desktop with `rerun out/<name>_episode_0.rrd`.
 
-### `head_depth` shows up black in `lerobot-dataset-viz`
+### Viewing `head_depth` — just export a grayscale video (simplest)
 
-That tool logs **every** camera as `rr.Image`, so depth (16-bit, values in the
-bottom few % of range) renders almost black — this is a viewer limitation, not
-bad data. It also looks *banded* because lerobot's image path squashes the
-16-bit depth to 8-bit (~90 levels). The included depth-aware viewer instead reads
-the **true 16-bit** depth per episode (continuous, ~2000+ levels) and logs it as
-`rr.DepthImage` with a **grayscale** colormap and a stable range:
+In `lerobot-dataset-viz` depth looks **black and banded**: that tool logs every
+camera as `rr.Image`, and lerobot's image path squashes the 16-bit depth to 8-bit
+(~90 levels) with values in the bottom few % of range. The data is fine — the
+viewer just isn't depth-aware.
+
+The simplest, robust way to look at depth is to export it as a normalised 8-bit
+**grayscale mp4** straight from the true 16-bit video (continuous, ~2000+
+levels). No rerun, plays anywhere, never OOMs:
 
 ```bash
-# spawn the rerun viewer (RGB + a properly colorized depth view)
-python -m agibot2lerobot.viz_depth ./AgibotWorld_lerobot/agibot/RI_task_4439_458713_458713 --episode 0
-
-# headless: write a .rrd (use --max-frames N for a quick look)
-python -m agibot2lerobot.viz_depth <dataset_dir> --episode 0 --save out/ --max-frames 200
+python -m agibot2lerobot depth ./AgibotWorld_lerobot/agibot/RI_task_4439_458713_458713 \
+  --episode 0 --out depth.mp4
 ```
-(simulation datasets have no depth, so this behaves like the normal viewer there.)
+(simulation datasets have no depth.)
+
+<details>
+<summary>Optional: interactive rerun viewer with synced RGB + depth</summary>
+
+Logs depth as `rr.DepthImage` (grayscale, true 16-bit). The **live** viewer can
+overload rerun on long multi-camera episodes (gRPC transport error) — use
+`--save` (writes a `.rrd`) and/or `--depth-only`:
+
+```bash
+python -m agibot2lerobot.viz_depth <dataset_dir> --episode 0 --depth-only          # spawn viewer
+python -m agibot2lerobot.viz_depth <dataset_dir> --episode 0 --save out/ --max-frames 300
+```
+</details>
 
 ---
 
@@ -161,12 +173,13 @@ data is intact**. But lerobot's standard image path decodes depth to **8-bit**,
 losing precision. For metric depth, read the 16-bit video directly:
 
 ```python
-from agibot2lerobot.depth import read_depth_uint16, colorize_depth
-depth = read_depth_uint16("AgibotWorld_lerobot/agibot/RI_task_4439_458713_458713")
-print(depth.shape, depth.dtype, depth.min(), depth.max())   # (N,H,W) uint16 (mm)
+from agibot2lerobot.depth import read_episode_depth
+# true 16-bit depth for one episode, aligned to its frames -> (length, H, W) uint16 (mm)
+depth = read_episode_depth("AgibotWorld_lerobot/agibot/RI_task_4439_458713_458713", episode=0)
+print(depth.shape, depth.dtype, depth.min(), depth.max())
 
-# dump a viewable colormapped PNG of frame 0:
-#   python -m agibot2lerobot.depth <dataset_dir> --frame 0 --out depth0.png
+# grayscale depth video (simple):   python -m agibot2lerobot depth <dataset_dir> --episode 0
+# single colormapped PNG:            python -m agibot2lerobot.depth <dataset_dir> --png --frame 0
 ```
 
 ---

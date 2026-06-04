@@ -114,17 +114,73 @@ def colorize_depth(depth: np.ndarray, lo_hi=(2, 98), cmap: str = "turbo") -> np.
     return (rgb * 255).astype(np.uint8)
 
 
-if __name__ == "__main__":  # tiny CLI: dump frame 0 as a viewable PNG
-    import argparse
-    from PIL import Image
+def to_gray8(depth: np.ndarray, lo: float, hi: float) -> np.ndarray:
+    """Normalise a ``uint16`` depth frame to ``uint8`` grayscale (invalid -> 0)."""
+    d = depth.astype(np.float32)
+    g = np.clip((d - lo) / max(hi - lo, 1e-6), 0, 1)
+    g[depth == 0] = 0.0
+    return (g * 255).astype(np.uint8)
 
-    ap = argparse.ArgumentParser(description="Extract a viewable depth PNG.")
+
+def export_grayscale_video(
+    dataset_dir: str | Path,
+    episode: int = 0,
+    out: str | Path = "depth.mp4",
+    camera: str = "head_depth",
+    lo_hi=(2, 98),
+) -> Path:
+    """Write an episode's depth as a normalised **8-bit grayscale mp4**.
+
+    Simple and robust: no rerun, plays in any video player. Uses the true 16-bit
+    depth (continuous) with one percentile range for the whole episode.
+    """
+    import json
+
+    dataset_dir = Path(dataset_dir)
+    out = Path(out)
+    depth = read_episode_depth(dataset_dir, episode=episode, camera=camera)  # (N,H,W) u16
+    valid = depth[depth > 0]
+    lo, hi = (float(np.percentile(valid, lo_hi[0])), float(np.percentile(valid, lo_hi[1]))) \
+        if valid.size else (0.0, 65535.0)
+    n, h, w = depth.shape
+    fps = json.loads((dataset_dir / "meta" / "info.json").read_text())["fps"]
+
+    proc = subprocess.Popen(
+        ["ffmpeg", "-y", "-v", "error",
+         "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{w}x{h}", "-r", str(fps),
+         "-i", "pipe:0", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(out)],
+        stdin=subprocess.PIPE,
+    )
+    for i in range(n):
+        proc.stdin.write(to_gray8(depth[i], lo, hi).tobytes())
+    proc.stdin.close()
+    if proc.wait() != 0:
+        raise RuntimeError("ffmpeg failed while writing the depth video")
+    return out
+
+
+if __name__ == "__main__":
+    # CLI: grayscale depth mp4 (default) or a single colormapped PNG.
+    #   python -m agibot2lerobot.depth <dir> --episode 0 --out depth.mp4
+    #   python -m agibot2lerobot.depth <dir> --png --frame 0 --out depth.png
+    import argparse
+
+    ap = argparse.ArgumentParser(description="Export head_depth as grayscale video / PNG.")
     ap.add_argument("dataset_dir", help="converted v3.0 dataset directory")
-    ap.add_argument("--frame", type=int, default=0)
-    ap.add_argument("--out", default="depth_frame.png")
+    ap.add_argument("--episode", type=int, default=0)
+    ap.add_argument("--out", default=None, help="output path (default depth.mp4 / depth.png)")
+    ap.add_argument("--png", action="store_true", help="write one colormapped PNG instead of mp4")
+    ap.add_argument("--frame", type=int, default=0, help="frame index for --png")
     a = ap.parse_args()
 
-    depth = read_depth_uint16(a.dataset_dir)
-    print(f"depth {depth.shape} uint16  min={depth.min()} max={depth.max()}")
-    Image.fromarray(colorize_depth(depth[a.frame])).save(a.out)
-    print(f"wrote {a.out}")
+    if a.png:
+        from PIL import Image
+        out = a.out or "depth.png"
+        depth = read_episode_depth(a.dataset_dir, episode=a.episode)
+        print(f"depth {depth.shape} uint16  min={depth.min()} max={depth.max()}")
+        Image.fromarray(colorize_depth(depth[a.frame])).save(out)
+        print(f"wrote {out}")
+    else:
+        out = a.out or "depth.mp4"
+        path = export_grayscale_video(a.dataset_dir, episode=a.episode, out=out)
+        print(f"wrote {path}  (open with any video player)")

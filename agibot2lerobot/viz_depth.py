@@ -35,6 +35,7 @@ def visualize_episode(
     namespace: str = "agibot",
     save_dir: str | Path | None = None,
     max_frames: int | None = None,
+    depth_only: bool = False,
     batch_size: int = 32,
     num_workers: int = 0,
 ) -> None:
@@ -53,8 +54,12 @@ def visualize_episode(
     rr.init(f"{namespace}/{name}/episode_{episode}", spawn=spawn)
 
     depth_keys = [k for k in ds.meta.camera_keys if "depth" in k.lower()]
-    rgb_keys = [k for k in ds.meta.camera_keys if k not in depth_keys]
+    rgb_keys = [] if depth_only else [k for k in ds.meta.camera_keys if k not in depth_keys]
     print(f"episode {episode}: {ds.num_frames} frames | depth={depth_keys} rgb={rgb_keys}")
+    if spawn and ds.num_frames > 600 and not depth_only:
+        print("  NOTE: streaming a long, multi-camera episode to the live viewer can\n"
+              "        overload rerun (gRPC transport error). If it dies, use --save to\n"
+              "        write a .rrd, add --depth-only, or just: agibot2lerobot depth ...")
 
     # Pre-load TRUE 16-bit depth per episode (lerobot's path squashes it to 8-bit
     # -> banding). One stable display range for the whole episode.
@@ -110,11 +115,14 @@ def main(argv=None):
                     help="write a .rrd to this dir instead of spawning a viewer")
     ap.add_argument("--max-frames", type=int, default=None,
                     help="limit number of frames (handy for a quick look)")
+    ap.add_argument("--depth-only", action="store_true",
+                    help="log only depth cameras (much lighter; avoids viewer overload)")
     ap.add_argument("--num-workers", type=int, default=0)
     a = ap.parse_args(argv)
     visualize_episode(
         a.dataset_dir, episode=a.episode, namespace=a.namespace,
-        save_dir=a.save_dir, max_frames=a.max_frames, num_workers=a.num_workers,
+        save_dir=a.save_dir, max_frames=a.max_frames, depth_only=a.depth_only,
+        num_workers=a.num_workers,
     )
 
 

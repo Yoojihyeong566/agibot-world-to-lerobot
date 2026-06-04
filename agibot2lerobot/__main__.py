@@ -43,6 +43,12 @@ def _cmd_convert(args):
     raise SystemExit(1 if failed else 0)
 
 
+def _cmd_depth(args):
+    from .depth import export_grayscale_video
+    out = export_grayscale_video(args.dataset, episode=args.episode, out=args.out)
+    print(f"wrote {out}  (grayscale depth video — open in any player)")
+
+
 def _cmd_viz(args):
     ds = Path(args.dataset).resolve()
     name = ds.name
@@ -75,6 +81,12 @@ def main(argv=None):
     pc.add_argument("--keep-v21-backup", action="store_true",
                     help="keep the <name>_old v2.1 backup lerobot leaves behind")
     pc.set_defaults(func=_cmd_convert)
+
+    pd = sub.add_parser("depth", help="export head_depth as a grayscale mp4 (simple, robust)")
+    pd.add_argument("dataset", help="path to a converted v3.0 dataset dir")
+    pd.add_argument("--episode", type=int, default=0)
+    pd.add_argument("--out", default="depth.mp4")
+    pd.set_defaults(func=_cmd_depth)
 
     pv = sub.add_parser("viz", help="print the viz command for a converted dataset")
     pv.add_argument("dataset", help="path to a converted v3.0 dataset dir")
