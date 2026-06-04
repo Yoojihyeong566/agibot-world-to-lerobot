@@ -35,6 +35,7 @@ def _cmd_convert(args):
         keep_extracted=args.keep_extracted,
         keep_v21_backup=args.keep_v21_backup,
         repo_namespace=args.namespace,
+        preserve_annotations=not args.no_preserve_annotations,
     )
     print("\n==================== SUMMARY ====================")
     for name, status in results.items():
@@ -80,6 +81,9 @@ def main(argv=None):
                     help="keep the intermediate extracted/ files")
     pc.add_argument("--keep-v21-backup", action="store_true",
                     help="keep the <name>_old v2.1 backup lerobot leaves behind")
+    pc.add_argument("--no-preserve-annotations", action="store_true",
+                    help="do NOT save language annotations (instruction_segments / key_frame "
+                         "/ high_level_instruction) into meta/agibot_annotations.json")
     pc.set_defaults(func=_cmd_convert)
 
     pd = sub.add_parser("depth", help="export head_depth as a grayscale mp4 (simple, robust)")

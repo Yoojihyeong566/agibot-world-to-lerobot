@@ -102,11 +102,31 @@ AgibotWorld_lerobot/agibot/
 ```
 
 Options: `--namespace` (default `agibot`), `--keep-extracted`,
-`--keep-v21-backup`, `--workers N`.
+`--keep-v21-backup`, `--workers N`, `--no-preserve-annotations`.
 
 **What it does per dataset:** extract the (multi-part) `.tar.gz` → locate the
 v2.1 root (IL/RI nest an extra `data/`; simulation doesn't) → copy to output →
 run `convert_dataset_v21_to_v30` in place → drop the `*_old` backup.
+
+### Language annotations are preserved (important)
+
+The v2.1→v3.0 converter **discards** AgiBot's custom `info.json` fields, so a plain
+conversion keeps only the one-line task label. This tool copies the language /
+annotation layers into a sidecar **`meta/agibot_annotations.json`** before they're
+stripped (disable with `--no-preserve-annotations`):
+
+* `instruction_segments` — per-step skill + NL instruction (`[start,end)` frames)
+* `key_frame` — Task Frame (subtask NL) and 2D Bounding Box (object) annotations
+* `high_level_instruction` — per-episode high-level NL goal (simulation)
+* plus the raw `meta/annotations.json`
+
+```python
+from agibot2lerobot import load_annotations, instruction_segments
+ann = load_annotations("AgibotWorld_lerobot/agibot/RI_task_4439_458713_458713")
+print(ann["present"])                               # which layers exist
+segs = instruction_segments(".../RI_task_4439_458713_458713", episode=0)
+for s in segs: print(s["start_frame_index"], s["end_frame_index"], s["instruction"])
+```
 
 ---
 

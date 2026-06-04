@@ -11,6 +11,7 @@ import json
 import shutil
 from pathlib import Path
 
+from .annotations import extract_annotations, save_annotations
 from .discover import DatasetItem, discover_datasets
 from .extract import extract_archive
 
@@ -33,6 +34,7 @@ def convert_one(
     keep_extracted: bool = False,
     keep_v21_backup: bool = False,
     repo_namespace: str = "agibot",
+    preserve_annotations: bool = True,
 ) -> Path:
     """Extract and convert a single dataset. Returns the v3.0 dataset path.
 
@@ -66,6 +68,9 @@ def convert_one(
     if ver != "v2.1":
         raise ValueError(f"{item.name}: expected codebase_version v2.1, got {ver}")
 
+    # grab the language/annotation layers BEFORE conversion strips them
+    annos = extract_annotations(v21_root / "meta") if preserve_annotations else None
+
     # 3) copy to output, then convert in place (lerobot leaves a *_old backup)
     out.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(v21_root, out)
@@ -74,6 +79,10 @@ def convert_one(
         root=str(out),
         push_to_hub=False,
     )
+
+    # 3b) restore the stripped annotations as a meta/ sidecar
+    if annos is not None:
+        save_annotations(annos, out / "meta")
 
     # 4) cleanup
     backup = out.parent / f"{item.name}_old"

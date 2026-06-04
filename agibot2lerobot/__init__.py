@@ -13,6 +13,11 @@ __version__ = "0.1.0"
 from .extract import extract_archive
 from .discover import discover_datasets, DatasetItem
 from .convert import convert_one, convert_all
+from .annotations import (
+    extract_annotations,
+    load_annotations,
+    instruction_segments,
+)
 
 __all__ = [
     "extract_archive",
@@ -20,4 +25,7 @@ __all__ = [
     "DatasetItem",
     "convert_one",
     "convert_all",
+    "extract_annotations",
+    "load_annotations",
+    "instruction_segments",
 ]
