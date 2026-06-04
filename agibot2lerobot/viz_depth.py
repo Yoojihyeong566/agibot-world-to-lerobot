@@ -56,10 +56,10 @@ def visualize_episode(
     depth_keys = [k for k in ds.meta.camera_keys if "depth" in k.lower()]
     rgb_keys = [] if depth_only else [k for k in ds.meta.camera_keys if k not in depth_keys]
     print(f"episode {episode}: {ds.num_frames} frames | depth={depth_keys} rgb={rgb_keys}")
-    if spawn and ds.num_frames > 600 and not depth_only:
-        print("  NOTE: streaming a long, multi-camera episode to the live viewer can\n"
-              "        overload rerun (gRPC transport error). If it dies, use --save to\n"
-              "        write a .rrd, add --depth-only, or just: agibot2lerobot depth ...")
+    if spawn and ds.num_frames > 1500 and not depth_only:
+        print("  NOTE: very long episode — RGB is logged compressed to keep memory\n"
+              "        bounded, but if the live viewer still dies use --save to write a\n"
+              "        .rrd and open it with `rerun file.rrd`.")
 
     # Pre-load TRUE 16-bit depth per episode (lerobot's path squashes it to 8-bit
     # -> banding). One stable display range for the whole episode.
@@ -87,7 +87,9 @@ def visualize_episode(
             rr.set_time("timestamp", timestamp=batch["timestamp"][i].item())
 
             for key in rgb_keys:
-                rr.log(key, rr.Image(_to_hwc_uint8(batch[key][i].numpy())))
+                # compress RGB (like lerobot's --display-compressed-images) so the
+                # live viewer doesn't OOM on long, multi-camera episodes
+                rr.log(key, rr.Image(_to_hwc_uint8(batch[key][i].numpy())).compress())
 
             for key in depth_keys:
                 frame = depth16[key][seen]                      # continuous uint16

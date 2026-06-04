@@ -112,55 +112,27 @@ run `convert_dataset_v21_to_v30` in place → drop the `*_old` backup.
 
 ## 4. Visualize
 
-`--root` is the **dataset folder itself** (not its parent), and `--repo-id` is
-just a label. Print the exact command with:
-
-```bash
-python -m agibot2lerobot viz ./AgibotWorld_lerobot/agibot/RI_task_4439_458713_458713 --episode 0
-```
-
-which gives:
+Use **`viz_depth`** — it shows RGB **and** depth correctly in one rerun window.
+RGB is logged compressed (so the live viewer doesn't OOM) and depth is logged as
+`rr.DepthImage` (grayscale, true 16-bit, continuous):
 
 ```bash
 DS=./AgibotWorld_lerobot/agibot/RI_task_4439_458713_458713
-lerobot-dataset-viz --repo-id agibot/RI_task_4439_458713_458713 \
-  --root "$DS" --mode local --episode-index 0 --display-compressed-images
+python -m agibot2lerobot.viz_depth "$DS" --episode 0          # spawns the rerun viewer
 ```
+* Headless / very long episode: add `--save out/` to write a `.rrd`, then open it
+  on a desktop with `rerun out/<name>_episode_0.rrd`.
+* `--depth-only` logs just depth; `--max-frames N` limits frames.
+* simulation datasets have no depth, so this just shows their RGB cameras.
 
-* `--display-compressed-images` avoids OOM on long episodes (it logs encoded
-  frames instead of decoding every frame to raw RGB).
-* On a headless box add `--save 1 --output-dir out/` to write a `.rrd`, then open
-  it on a desktop with `rerun out/<name>_episode_0.rrd`.
-
-### Viewing `head_depth` — just export a grayscale video (simplest)
-
-In `lerobot-dataset-viz` depth looks **black and banded**: that tool logs every
-camera as `rr.Image`, and lerobot's image path squashes the 16-bit depth to 8-bit
-(~90 levels) with values in the bottom few % of range. The data is fine — the
-viewer just isn't depth-aware.
-
-The simplest, robust way to look at depth is to export it as a normalised 8-bit
-**grayscale mp4** straight from the true 16-bit video (continuous, ~2000+
-levels). No rerun, plays anywhere, never OOMs:
-
-```bash
-python -m agibot2lerobot depth ./AgibotWorld_lerobot/agibot/RI_task_4439_458713_458713 \
-  --episode 0 --out depth.mp4
-```
-(simulation datasets have no depth.)
-
-<details>
-<summary>Optional: interactive rerun viewer with synced RGB + depth</summary>
-
-Logs depth as `rr.DepthImage` (grayscale, true 16-bit). The **live** viewer can
-overload rerun on long multi-camera episodes (gRPC transport error) — use
-`--save` (writes a `.rrd`) and/or `--depth-only`:
-
-```bash
-python -m agibot2lerobot.viz_depth <dataset_dir> --episode 0 --depth-only          # spawn viewer
-python -m agibot2lerobot.viz_depth <dataset_dir> --episode 0 --save out/ --max-frames 300
-```
-</details>
+> Why not plain `lerobot-dataset-viz`? It logs **every** camera as `rr.Image`, so
+> 16-bit depth renders black and banded (its image path squashes depth to 8-bit).
+> It's fine for a quick RGB-only look:
+> ```bash
+> lerobot-dataset-viz --repo-id agibot/<NAME> --root "$DS" \
+>   --mode local --episode-index 0 --display-compressed-images
+> ```
+> (`--root` is the dataset folder itself, not its parent; `--repo-id` is just a label.)
 
 ---
 
