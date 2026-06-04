@@ -43,6 +43,7 @@ def visualize_episode(
     from rerun.components import Colormap
     from torch.utils.data import DataLoader
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
+    from lerobot.utils.constants import ACTION, OBS_STATE
 
     from .depth import read_episode_depth
 
@@ -96,6 +97,14 @@ def visualize_episode(
                 lo, hi = depth_range[key]
                 rr.log(key, rr.DepthImage(
                     frame, colormap=Colormap.Grayscale, depth_range=[lo, hi]))
+
+            # each dimension of action / observation.state as a scalar plot
+            if ACTION in batch:
+                for d, v in enumerate(batch[ACTION][i]):
+                    rr.log(f"{ACTION}/{d}", rr.Scalars(v.item()))
+            if OBS_STATE in batch:
+                for d, v in enumerate(batch[OBS_STATE][i]):
+                    rr.log(f"state/{d}", rr.Scalars(v.item()))
             seen += 1
         if max_frames is not None and seen >= max_frames:
             break
