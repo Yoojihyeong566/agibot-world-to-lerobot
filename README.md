@@ -132,6 +132,22 @@ lerobot-dataset-viz --repo-id agibot/RI_task_4439_458713_458713 \
 * On a headless box add `--save 1 --output-dir out/` to write a `.rrd`, then open
   it on a desktop with `rerun out/<name>_episode_0.rrd`.
 
+### `head_depth` shows up black in `lerobot-dataset-viz`
+
+That tool logs **every** camera as `rr.Image`, so depth (16-bit, values in the
+bottom few % of range) renders almost black — this is a viewer limitation, not
+bad data. Use the included depth-aware viewer, which logs depth cameras as
+`rr.DepthImage` (rerun then colormaps + auto-ranges them):
+
+```bash
+# spawn the rerun viewer (RGB + a properly colorized depth view)
+python -m agibot2lerobot.viz_depth ./AgibotWorld_lerobot/agibot/RI_task_4439_458713_458713 --episode 0
+
+# headless: write a .rrd (use --max-frames N for a quick look)
+python -m agibot2lerobot.viz_depth <dataset_dir> --episode 0 --save out/ --max-frames 200
+```
+(simulation datasets have no depth, so this behaves like the normal viewer there.)
+
 ---
 
 ## 5. Depth (`head_depth`) — read it correctly
