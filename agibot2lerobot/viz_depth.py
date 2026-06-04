@@ -39,9 +39,11 @@ def visualize_episode(
     num_workers: int = 0,
 ) -> None:
     import rerun as rr
-    import torch
+    from rerun.components import Colormap
     from torch.utils.data import DataLoader
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+    from .depth import read_episode_depth
 
     dataset_dir = Path(dataset_dir).resolve()
     name = dataset_dir.name
@@ -50,11 +52,24 @@ def visualize_episode(
     spawn = save_dir is None
     rr.init(f"{namespace}/{name}/episode_{episode}", spawn=spawn)
 
-    loader = DataLoader(ds, batch_size=batch_size, num_workers=num_workers, shuffle=False)
     depth_keys = [k for k in ds.meta.camera_keys if "depth" in k.lower()]
     rgb_keys = [k for k in ds.meta.camera_keys if k not in depth_keys]
     print(f"episode {episode}: {ds.num_frames} frames | depth={depth_keys} rgb={rgb_keys}")
 
+    # Pre-load TRUE 16-bit depth per episode (lerobot's path squashes it to 8-bit
+    # -> banding). One stable display range for the whole episode.
+    depth16: dict[str, np.ndarray] = {}
+    depth_range: dict[str, tuple[float, float]] = {}
+    for key in depth_keys:
+        d = read_episode_depth(dataset_dir, episode=episode, camera=key.split(".")[-1])
+        depth16[key] = d
+        valid = d[d > 0]
+        lo, hi = (float(np.percentile(valid, 2)), float(np.percentile(valid, 98))) \
+            if valid.size else (0.0, 1.0)
+        depth_range[key] = (lo, hi)
+        print(f"  {key}: 16-bit {d.shape}, {len(np.unique(d))} levels, range~[{lo:.0f},{hi:.0f}]")
+
+    loader = DataLoader(ds, batch_size=batch_size, num_workers=num_workers, shuffle=False)
     seen = 0
     first_index = None
     for batch in loader:
@@ -70,15 +85,10 @@ def visualize_episode(
                 rr.log(key, rr.Image(_to_hwc_uint8(batch[key][i].numpy())))
 
             for key in depth_keys:
-                # dataset gives (3,H,W) float[0,1]; take one channel back to ~mm
-                ch = batch[key][i][0].numpy().astype(np.float32)
-                depth_mm = ch * 65535.0  # undo the [0,1] normalisation
-                # clip saturated/invalid outliers so rerun's auto-range is useful
-                valid = depth_mm[depth_mm > 0]
-                if valid.size:
-                    hi = float(np.percentile(valid, 98))
-                    depth_mm = np.clip(depth_mm, 0, hi)
-                rr.log(key, rr.DepthImage(depth_mm))
+                frame = depth16[key][seen]                      # continuous uint16
+                lo, hi = depth_range[key]
+                rr.log(key, rr.DepthImage(
+                    frame, colormap=Colormap.Grayscale, depth_range=[lo, hi]))
             seen += 1
         if max_frames is not None and seen >= max_frames:
             break

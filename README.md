@@ -136,8 +136,10 @@ lerobot-dataset-viz --repo-id agibot/RI_task_4439_458713_458713 \
 
 That tool logs **every** camera as `rr.Image`, so depth (16-bit, values in the
 bottom few % of range) renders almost black — this is a viewer limitation, not
-bad data. Use the included depth-aware viewer, which logs depth cameras as
-`rr.DepthImage` (rerun then colormaps + auto-ranges them):
+bad data. It also looks *banded* because lerobot's image path squashes the
+16-bit depth to 8-bit (~90 levels). The included depth-aware viewer instead reads
+the **true 16-bit** depth per episode (continuous, ~2000+ levels) and logs it as
+`rr.DepthImage` with a **grayscale** colormap and a stable range:
 
 ```bash
 # spawn the rerun viewer (RGB + a properly colorized depth view)

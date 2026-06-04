@@ -39,12 +39,8 @@ def _video_size(mp4: Path) -> tuple[int, int]:
     return int(st["width"]), int(st["height"])
 
 
-def read_depth_uint16(dataset_dir: str | Path, camera: str = "head_depth") -> np.ndarray:
-    """Return all depth frames as ``(num_frames, H, W)`` ``uint16`` (raw values).
-
-    Values are the sensor units stored in the dataset (typically millimetres).
-    """
-    mp4 = find_depth_video(dataset_dir, camera)
+def _decode_uint16(mp4: Path) -> np.ndarray:
+    """Decode a ``gray16`` mp4 losslessly to ``(num_frames, H, W)`` ``uint16``."""
     w, h = _video_size(mp4)
     raw = subprocess.run(
         ["ffmpeg", "-v", "error", "-i", str(mp4),
@@ -52,6 +48,51 @@ def read_depth_uint16(dataset_dir: str | Path, camera: str = "head_depth") -> np
         capture_output=True, check=True,
     ).stdout
     return np.frombuffer(raw, dtype="<u2").reshape(-1, h, w)
+
+
+def read_depth_uint16(dataset_dir: str | Path, camera: str = "head_depth") -> np.ndarray:
+    """Raw 16-bit depth of the **first** depth video file (== episode 0).
+
+    For a specific episode use :func:`read_episode_depth` (handles per-episode
+    video files in multi-episode datasets).
+    """
+    return _decode_uint16(find_depth_video(dataset_dir, camera))
+
+
+def read_episode_depth(
+    dataset_dir: str | Path, episode: int = 0, camera: str = "head_depth"
+) -> np.ndarray:
+    """Raw 16-bit depth frames for one episode, aligned to its timeline.
+
+    Returns ``(length, H, W)`` ``uint16`` in frame order, so ``depth[i]`` matches
+    the i-th frame of that episode in ``LeRobotDataset``.
+    """
+    import glob
+    import pandas as pd
+
+    dataset_dir = Path(dataset_dir)
+    key = camera if camera.startswith("observation.") else f"observation.images.{camera}"
+    base = f"videos/{key}"
+
+    metas = sorted(glob.glob(str(dataset_dir / "meta" / "episodes" / "**" / "*.parquet"),
+                             recursive=True))
+    df = pd.concat([pd.read_parquet(m) for m in metas], ignore_index=True)
+    row = df[df["episode_index"] == episode]
+    if row.empty:
+        raise IndexError(f"episode {episode} not found in {dataset_dir}")
+    row = row.iloc[0]
+
+    ci = int(row[f"{base}/chunk_index"])
+    fi = int(row[f"{base}/file_index"])
+    from_ts = float(row[f"{base}/from_timestamp"])
+    length = int(row["length"]) if "length" in row else \
+        int(row["dataset_to_index"] - row["dataset_from_index"])
+    fps = json.loads((dataset_dir / "meta" / "info.json").read_text())["fps"]
+
+    mp4 = dataset_dir / "videos" / key / f"chunk-{ci:03d}" / f"file-{fi:03d}.mp4"
+    full = _decode_uint16(mp4)
+    off = round(from_ts * fps)
+    return full[off:off + length]
 
 
 def colorize_depth(depth: np.ndarray, lo_hi=(2, 98), cmap: str = "turbo") -> np.ndarray:
